@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/mr_st.dir/exponents.cpp.o CMakeFiles/mr_st.dir/Fp.cpp.o CMakeFiles/mr_st.dir/mon_index.cpp.o CMakeFiles/mr_st.dir/steenrod.cpp.o CMakeFiles/mr_st.dir/steenrod_init.cpp.o CMakeFiles/mr_st.dir/stmain.cpp.o -o mr_st  /opt/homebrew/opt/libomp/lib/libomp.dylib

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/mot_comb.dir/Fp.cpp.o CMakeFiles/mot_comb.dir/streams.cpp.o CMakeFiles/mot_comb.dir/mot_combine.cpp.o CMakeFiles/mot_comb.dir/mot_steenrod.cpp.o CMakeFiles/mot_comb.dir/exponents.cpp.o -o mot_comb  /opt/homebrew/opt/libomp/lib/libomp.dylib

@@ -1,0 +1,14 @@
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/mr_st.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/BPtab.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/mr_BP.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/mr_ex.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/mr_mot.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/mot_comb.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/motTab.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/kos.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/mot_mult.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/yoneda.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/tauBoc.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/e2p.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/edit_cache.dir
+/Users/heyizhu/Applications/Github/MinimalResolution-Spencer/CMakeFiles/rebuild_cache.dir

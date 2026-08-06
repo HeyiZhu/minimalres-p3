@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/tauBoc.dir/taubocmain.cpp.o CMakeFiles/tauBoc.dir/tao_bockstein.cpp.o CMakeFiles/tauBoc.dir/mot_steenrod.cpp.o CMakeFiles/tauBoc.dir/exponents.cpp.o -o tauBoc  /opt/homebrew/opt/libomp/lib/libomp.dylib
