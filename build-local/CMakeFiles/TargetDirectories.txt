@@ -1,0 +1,14 @@
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/mr_st.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/BPtab.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/mr_BP.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/mr_ex.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/mr_mot.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/mot_comb.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/motTab.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/kos.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/mot_mult.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/yoneda.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/tauBoc.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/e2p.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/edit_cache.dir
+/Users/stone/Documents/GitHub/minimalres-p3/build-local/CMakeFiles/rebuild_cache.dir

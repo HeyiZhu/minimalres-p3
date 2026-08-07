@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/mr_ex.dir/ex_steenrod_init.cpp.o CMakeFiles/mr_ex.dir/ex_exponents.cpp.o CMakeFiles/mr_ex.dir/ex_index.cpp.o CMakeFiles/mr_ex.dir/ex_main.cpp.o CMakeFiles/mr_ex.dir/ctau_steenrod.cpp.o CMakeFiles/mr_ex.dir/Fp.cpp.o CMakeFiles/mr_ex.dir/streams.cpp.o -o mr_ex

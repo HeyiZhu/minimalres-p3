@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/kos.dir/steenrod.cpp.o CMakeFiles/kos.dir/steenrod_init.cpp.o CMakeFiles/kos.dir/kosul.cpp.o CMakeFiles/kos.dir/mon_index.cpp.o CMakeFiles/kos.dir/Fp.cpp.o CMakeFiles/kos.dir/exponents.cpp.o -o kos
