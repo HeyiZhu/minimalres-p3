@@ -1,0 +1,5 @@
+globalThis.MINIMALRES_DATA = {
+  "name": "25_BPAANSS_table.txt",
+  "kind": "aanss",
+  "text": "[0-0]\t|deg=(0,0)\nv0^1[0-0]\t|deg=(0,1)\nv0^2[0-0]\t|deg=(0,2)\nv0^3[0-0]\t|deg=(0,3)\nv0^4[0-0]\t|deg=(0,4)\nv0^5[0-0]\t|deg=(0,5)\n[1-0]\t|deg=(3,1)\nv1^1[1-0]\t|deg=(7,2)\n[2-0]\t|deg=(10,2)\nv0^1[2-0]\t<-\t[1-1]\t|d2\t|deg=(10,3)\nv0^1[1-1]\t|deg=(11,2)\nv0^2[1-1]\t|deg=(11,3)\n[3-0]\t|deg=(13,3)\nv1^3[1-0]\t|deg=(15,4)\nv1^1[3-0]\t<-\t[2-1]\t|d2\t|deg=(17,4)\nv1^4[1-0]\t|deg=(19,5)\n[4-0]\t|deg=(20,4)\nv0^1[4-0]\t<-\t[3-1]\t|d2\t|deg=(20,5)\nv1^3[2-0]\t<-\tv1^1v2^1[1-0]\t|d2\t|deg=(22,5)\nv0^2v1^1v2^1[1-0]\t|deg=(23,5)\n"
+};
