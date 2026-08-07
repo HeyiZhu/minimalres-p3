@@ -21,17 +21,17 @@ int Qp_Op::power_p_int(unsigned i){
 }
 
 //addition of the numerator
-inline num_type Qp_Op::safe_add(num_type x, num_type y){
+num_type Qp_Op::safe_add(num_type x, num_type y){
     return x+y;
 }
 
 //multiplication for the numerator
-inline num_type Qp_Op::safe_mult(num_type x, num_type y) {
+num_type Qp_Op::safe_mult(num_type x, num_type y) {
     return x*y;
 }
 
 //subtract the power of p's
-inline void Qp_Op::simplify(Qp &x) {
+void Qp_Op::simplify(Qp &x) {
 	//convention for 0
 	if(x.numerator==0) {
 		x.valuation = 0;
@@ -56,7 +56,7 @@ string Qp_Op::output(Qp x) {
 }
 
 //additions
-inline Qp Qp_Op::add(Qp const &x, Qp const &y){
+Qp Qp_Op::add(Qp const &x, Qp const &y){
 	//we need to make the denominators equal before addition
 	if(x.valuation<y.valuation)
 		return {safe_add(x.numerator, safe_mult(y.numerator,power_p(y.valuation-x.valuation))), x.valuation};
@@ -72,43 +72,43 @@ inline Qp Qp_Op::add(Qp const &x, Qp const &y){
 }
 
 //addition
-inline Qp Qp_Op::add(Qp &&x, Qp &&y){ 
+Qp Qp_Op::add(Qp &&x, Qp &&y){
 	return add(x,y); }
 
 //zero elememnt
-inline Qp Qp_Op::zero() { 
+Qp Qp_Op::zero() {
 	return {(num_type)0,0}; }
 	
 //check if equal to zero
-inline bool Qp_Op::isZero(Qp const &x){ 
+bool Qp_Op::isZero(Qp const &x){
 	return x.numerator==(num_type)0; }
 	
 //the negative
-inline Qp Qp_Op::minus(Qp const &x){ 
+Qp Qp_Op::minus(Qp const &x){
 	return {-x.numerator, x.valuation}; }
 
 //multiplication
-inline Qp Qp_Op::multiply(Qp const &x, Qp const &y){ 
+Qp Qp_Op::multiply(Qp const &x, Qp const &y){
 	return {safe_mult(x.numerator,y.numerator), (int16_t)(x.valuation+y.valuation)}; }
 
 //unit map
-inline Qp Qp_Op::unit(int x){ 
+Qp Qp_Op::unit(int x){
 	Qp result = {(num_type)x,0};
 	simplify(result);
 	return result;
 }
 
 //check if an element is invertible
-inline  bool  Qp_Op::invertible(Qp const &x){ 
+bool Qp_Op::invertible(Qp const &x){
 	return !isZero(x); }
 
 //the inverse operation is not needed in this project
-inline Qp Qp_Op::inverse(Qp const &x) 
+Qp Qp_Op::inverse(Qp const &x)
 { 
 	std::cerr << "not implemented!"; abort(); }
 
 //IO operations
-inline void Qp_Op::save(Qp const &x, std::iostream& writer){
+void Qp_Op::save(Qp const &x, std::iostream& writer){
 	//transform the numerator
 	auto vr = save2vector(x.numerator);
 	//write the valuation
@@ -120,7 +120,7 @@ inline void Qp_Op::save(Qp const &x, std::iostream& writer){
 }
 
 //IO operations
-inline Qp Qp_Op::load(std::iostream& reader){
+Qp Qp_Op::load(std::iostream& reader){
 	Qp result;
 	//read the valuation
 	reader.read((char*)&result.valuation,2);
@@ -135,7 +135,7 @@ inline Qp Qp_Op::load(std::iostream& reader){
 }
 
 //the characteristic of the residue field for Q3
-inline int Q3_Op::prime(){ 
+int Q3_Op::prime(){
 	return 3;}
 
 //the constructor
@@ -160,7 +160,7 @@ uint64_t Qp_Op::int_part(Qp x){
 }
 
 //transform the numerator to a char*
-inline std::vector<unsigned char> Qp_Op::save2vector(num_type x){
+std::vector<unsigned char> Qp_Op::save2vector(num_type x){
 	std::vector<unsigned char> result;
 	if(x==0){
 		result.push_back(0);
@@ -184,7 +184,7 @@ inline std::vector<unsigned char> Qp_Op::save2vector(num_type x){
 }
 
 //transform a char* into the numerator
-inline num_type Qp_Op::load_vector(std::vector<unsigned char> const &rv){
+num_type Qp_Op::load_vector(std::vector<unsigned char> const &rv){
 	num_type res=0;
 	
 	num_type vl = 1;
