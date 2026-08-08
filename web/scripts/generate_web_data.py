@@ -50,6 +50,11 @@ def main() -> None:
         type=Path,
         default=Path(__file__).resolve().parent.parent / "data",
     )
+    parser.add_argument(
+        "--no-products",
+        action="store_true",
+        help="omit companion multiplication tables from the generated payload",
+    )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -60,7 +65,7 @@ def main() -> None:
             "name": source.name,
             "kind": table_kind(source),
             "text": source.read_text(encoding="utf-8"),
-            "products": companion_products(source),
+            "products": {} if args.no_products else companion_products(source),
         }
         output = args.output_dir / f"{source.stem}.js"
         output.write_text(
