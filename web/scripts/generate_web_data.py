@@ -120,6 +120,145 @@ def table_basis(table_text: str) -> tuple[list[str], dict[str, tuple[int, int]]]
     return names, degrees
 
 
+def initial_page_data(table_text: str) -> tuple[
+    list[str],
+    dict[str, tuple[int, int]],
+    list[dict[str, object]],
+]:
+    """Return every initial-page class, including later d_r endpoints."""
+    names: list[str] = []
+    degrees: dict[str, tuple[int, int]] = {}
+    differentials: list[dict[str, object]] = []
+
+    def add(name: str, degree: tuple[int, int]) -> None:
+        if name not in degrees:
+            names.append(name)
+        degrees[name] = degree
+
+    for row in table_text.splitlines():
+        degree_match = re.search(r"\|deg=\((-?\d+),(-?\d+)\)", row)
+        if not degree_match:
+            continue
+        target_degree = tuple(map(int, degree_match.groups()))
+        relation = row.split("|", 1)[0].strip()
+        if "<-" not in relation:
+            add(relation, target_degree)
+            continue
+        page_match = re.search(r"\|d(\d+)", row)
+        if not page_match:
+            continue
+        target, source = map(str.strip, relation.split("<-", 1))
+        page = int(page_match.group(1))
+        source_degree = (target_degree[0] + 1, target_degree[1] - page)
+        add(source, source_degree)
+        add(target, target_degree)
+        differentials.append(
+            {
+                "source": source,
+                "target": target,
+                "page": page,
+                "source_degree": source_degree,
+                "target_degree": target_degree,
+            }
+        )
+    return names, degrees, differentials
+
+
+def initial_h0_from_bockstein(
+    table_text: str,
+    final_h0_text: str,
+    bockstein_h0_text: str,
+    *,
+    internal_degree_bound: int,
+) -> tuple[str, dict[str, int]]:
+    """Recover h0 before AANSS d_r's from the earlier Bockstein table.
+
+    Bockstein names that survive to the initial AANSS page are retained.
+    The map is then extended to differential targets using d_r h0 = h0 d_r.
+    Rows outside the computed internal-degree range remain unknown.
+    """
+    names, degrees, differentials = initial_page_data(table_text)
+    name_set = set(names)
+    final_h0 = parse_product_table(final_h0_text)
+    bockstein_h0 = parse_product_table(bockstein_h0_text)
+    known: dict[str, dict[str, int]] = {}
+
+    def projected(operation: dict[str, dict[str, int]], name: str) -> dict[str, int]:
+        return {
+            target: coefficient
+            for target, coefficient in operation[name].items()
+            if target in name_set
+        }
+
+    # The Bockstein table still contains transient AANSS generators.  The
+    # final AANSS table is authoritative on permanent generators.
+    for name in names:
+        if name in bockstein_h0:
+            known[name] = projected(bockstein_h0, name)
+        if name in final_h0:
+            final_image = projected(final_h0, name)
+            if name in known and known[name] != final_image:
+                raise ValueError(f"Bockstein/final h0 disagreement on {name}")
+            known[name] = final_image
+
+    differentials_by_page: dict[int, dict[str, dict[str, int]]] = {}
+    for differential in differentials:
+        page = int(differential["page"])
+        differentials_by_page.setdefault(page, {})[
+            str(differential["source"])
+        ] = {str(differential["target"]): 1}
+
+    # Naturality determines h0 on a differential target from its source.
+    changed = True
+    while changed:
+        changed = False
+        for differential in differentials:
+            source = str(differential["source"])
+            target = str(differential["target"])
+            page = int(differential["page"])
+            if source not in known:
+                continue
+            image: dict[str, int] = {}
+            page_map = differentials_by_page[page]
+            for term, coefficient in known[source].items():
+                for output, output_coefficient in page_map.get(term, {}).items():
+                    image[output] = (
+                        image.get(output, 0)
+                        + coefficient * output_coefficient
+                    ) % 3
+            image = {name: coefficient for name, coefficient in image.items() if coefficient}
+            if target in known and known[target] != image:
+                raise ValueError(f"h0 does not commute with d{page} at {source}")
+            if target not in known:
+                known[target] = image
+                changed = True
+
+    groups = {}
+    for name, degree in degrees.items():
+        groups.setdefault(degree, []).append(name)
+    # Within the declared run bound, an empty target bidegree forces h0=0.
+    for name, degree in degrees.items():
+        if name in known:
+            continue
+        target_degree = (degree[0] + 3, degree[1] + 1)
+        if sum(target_degree) <= internal_degree_bound and not groups.get(target_degree):
+            known[name] = {}
+
+    rows = []
+    for name in names:
+        if name not in known:
+            continue
+        rhs = []
+        for target, coefficient in known[name].items():
+            rhs.extend([target] * coefficient)
+        rows.append(f"{name}\t->\t" + "+".join(rhs + ["o"]))
+    return "\n".join(rows) + ("\n" if rows else ""), {
+        "initial_classes": len(names),
+        "known_h0_rows": len(known),
+        "unknown_h0_rows": len(names) - len(known),
+    }
+
+
 def prefixed_products(text: str, prefix: str) -> str:
     rows = []
     for source, targets in parse_product_table(text).items():
@@ -131,11 +270,32 @@ def prefixed_products(text: str, prefix: str) -> str:
     return "\n".join(rows) + ("\n" if rows else "")
 
 
-def calpha1_payloads(source: Path, table_text: str, products: dict[str, str]) -> tuple[dict, dict] | None:
-    """Build C(alpha_1) AHSS E1 and its d1-homology (AHSS E2)."""
-    h0 = products.get("h0")
-    if not h0 or "AANSS_table" not in source.name:
+def calpha1_payloads(
+    source: Path,
+    table_text: str,
+    products: dict[str, str],
+    *,
+    initial_h0_text: str | None = None,
+) -> tuple[dict, dict] | None:
+    """Run the cellular AHSS first, then retain the AANSS filtration."""
+    if "AANSS_table" not in source.name:
         return None
+    h0_stats = None
+    h0 = initial_h0_text
+    if h0 is None:
+        final_h0 = products.get("h0")
+        bockstein_h0_path = source.with_name(
+            source.name.replace("AANSS_table.txt", "BocSS_h0.txt")
+        )
+        bound_match = re.match(r"(\d+)_", source.name)
+        if not final_h0 or not bockstein_h0_path.is_file() or not bound_match:
+            return None
+        h0, h0_stats = initial_h0_from_bockstein(
+            table_text,
+            final_h0,
+            bockstein_h0_path.read_text(encoding="utf-8"),
+            internal_degree_bound=int(bound_match.group(1)),
+        )
     rows = []
     names = set()
     for row in table_text.splitlines():
@@ -176,7 +336,7 @@ def calpha1_payloads(source: Path, table_text: str, products: dict[str, str]) ->
         "construction": "C(alpha_1) = S^0 union_{alpha_1} e^4",
     }
 
-    basis_names, degrees = table_basis(table_text)
+    basis_names, degrees, sphere_differentials = initial_page_data(table_text)
     groups = {}
     for name in basis_names:
         groups.setdefault(degrees[name], []).append(name)
@@ -222,11 +382,41 @@ def calpha1_payloads(source: Path, table_text: str, products: dict[str, str]) ->
                 result[target] = (result.get(target, 0) + coefficient * target_coefficient) % 3
         return {name: coefficient for name, coefficient in result.items() if coefficient}
 
+    nodes_by_layer_degree = {}
+    for node in e2_nodes:
+        nodes_by_layer_degree.setdefault(
+            (node["layer"], node["sphere_degree"]), []
+        ).append(node)
+
+    def coordinates_in_cell_homology(
+        image: dict[str, int], layer: str, target_degree: tuple[int, int]
+    ) -> tuple[list[dict], list[int]] | None:
+        candidates = nodes_by_layer_degree.get((layer, target_degree), [])
+        original_basis = groups.get(target_degree, [])
+        vector = [image.get(name, 0) for name in original_basis]
+        if layer == "bottom":
+            quotient = cokernels.get(target_degree)
+            if not quotient:
+                return None
+            _, reduced, pivots, _ = quotient
+            for row, pivot in enumerate(pivots):
+                factor = vector[pivot]
+                if factor:
+                    vector = [
+                        (x - factor * y) % 3
+                        for x, y in zip(vector, reduced[row])
+                    ]
+        candidate_vectors = [
+            [candidate["vector"].get(name, 0) for name in original_basis]
+            for candidate in candidates
+        ]
+        coefficients = solve_in_basis(vector, candidate_vectors)
+        if coefficients is None:
+            return None
+        return candidates, coefficients
+
     def induced_products() -> dict[str, str]:
         result = {}
-        nodes_by_layer_degree = {}
-        for node in e2_nodes:
-            nodes_by_layer_degree.setdefault((node["layer"], node["sphere_degree"]), []).append(node)
         for label, text in products.items():
             product_map, output_rows = parse_product_table(text), []
             for node in e2_nodes:
@@ -239,21 +429,13 @@ def calpha1_payloads(source: Path, table_text: str, products: dict[str, str]) ->
                 target_degree = degrees[image_names[0]]
                 if any(degrees[name] != target_degree for name in image_names):
                     continue
-                candidates = nodes_by_layer_degree.get((node["layer"], target_degree), [])
-                original_basis = groups.get(target_degree, [])
-                vector = [image.get(name, 0) for name in original_basis]
-                if node["layer"] == "bottom":
-                    quotient = cokernels.get(target_degree)
-                    if not quotient:
-                        continue
-                    _, reduced, pivots, _ = quotient
-                    for row, pivot in enumerate(pivots):
-                        factor = vector[pivot]
-                        if factor:
-                            vector = [(x - factor * y) % 3 for x, y in zip(vector, reduced[row])]
-                candidate_vectors = [[candidate["vector"].get(name, 0) for name in original_basis] for candidate in candidates]
-                coefficients = solve_in_basis(vector, candidate_vectors)
-                if coefficients is None or not any(coefficients):
+                coordinates = coordinates_in_cell_homology(
+                    image, node["layer"], target_degree
+                )
+                if coordinates is None:
+                    continue
+                candidates, coefficients = coordinates
+                if not any(coefficients):
                     continue
                 rhs = []
                 for candidate, coefficient in zip(candidates, coefficients):
@@ -262,15 +444,89 @@ def calpha1_payloads(source: Path, table_text: str, products: dict[str, str]) ->
             result[label] = "\n".join(output_rows) + ("\n" if output_rows else "")
         return result
 
+    def induced_differential_rows() -> list[str]:
+        by_page: dict[int, dict[str, dict[str, int]]] = {}
+        for differential in sphere_differentials:
+            page = int(differential["page"])
+            by_page.setdefault(page, {})[str(differential["source"])] = {
+                str(differential["target"]): 1
+            }
+
+        output_rows = []
+        for page, differential_map in sorted(by_page.items()):
+            for node in e2_nodes:
+                image: dict[str, int] = {}
+                for name, coefficient in node["vector"].items():
+                    for target, target_coefficient in differential_map.get(
+                        name, {}
+                    ).items():
+                        image[target] = (
+                            image.get(target, 0)
+                            + coefficient * target_coefficient
+                        ) % 3
+                image = {
+                    name: coefficient
+                    for name, coefficient in image.items()
+                    if coefficient
+                }
+                if not image:
+                    continue
+                image_names = list(image)
+                target_degree = degrees[image_names[0]]
+                if any(degrees[name] != target_degree for name in image_names):
+                    raise ValueError("AANSS differential has mixed target degrees")
+                coordinates = coordinates_in_cell_homology(
+                    image, node["layer"], target_degree
+                )
+                if coordinates is None:
+                    raise ValueError(
+                        f"cannot express induced d{page} from {node['name']}"
+                    )
+                candidates, coefficients = coordinates
+                nonzero = [
+                    (candidate, coefficient)
+                    for candidate, coefficient in zip(candidates, coefficients)
+                    if coefficient
+                ]
+                if len(nonzero) != 1:
+                    raise ValueError(
+                        f"induced d{page} from {node['name']} has a "
+                        "multi-generator target; change the displayed basis"
+                    )
+                target, _coefficient = nonzero[0]
+                target_x, target_y = target["degree"]
+                output_rows.append(
+                    f"{target['name']}\t<-\t{node['name']}\t|d{page}"
+                    f"\t|deg=({target_x},{target_y})\t|cell={node['layer']}"
+                )
+        return output_rows
+
     e2_rows = [f"{node['name']}\t|deg=({node['degree'][0]},{node['degree'][1]})\t|cell={node['layer']}" for node in e2_nodes]
+    differential_rows = induced_differential_rows()
     e2 = {
         "name": f"{base} AANSS E2 after the cellular attaching differential",
         "kind": "aanss",
-        "text": "\n".join(e2_rows) + "\n",
+        "text": "\n".join(e2_rows + differential_rows) + "\n",
         "products": induced_products(),
-        "construction": "H(E1(C(alpha_1)), d1=alpha_1=h0), over F3",
-        "truncation_note": "Only bidegrees where every required h0 value is present are included.",
+        "construction": (
+            "First take the cellular AHSS homology for d_cell=h0 over F3; "
+            "then display the induced AANSS differentials."
+        ),
+        "axis_note": (
+            "The vertical coordinate is AANSS filtration. Cellular AHSS "
+            "filtration is intentionally not plotted."
+        ),
+        "extension_note": (
+            "a0 is an optional multiplication overlay; its lines are not "
+            "merged into Z/3^k nodes on this chart."
+        ),
+        "truncation_note": (
+            "Only bidegrees where every required initial-page h0 value is "
+            "present are included."
+        ),
     }
+    if h0_stats is not None:
+        e2["initial_h0_counts"] = h0_stats
     return ahss, e2
 
 

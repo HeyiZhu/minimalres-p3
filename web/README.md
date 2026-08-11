@@ -66,9 +66,11 @@ The four checked-in 185 datasets are derived from the public text files in
   menu contains the normalized `h0` (alpha_1) and `theta2` through `theta7`
   operations. Solid green product lines have coefficient 1; dashed green lines
   have coefficient 2 modulo 3.
-* `185_Calpha1_ANSS_E2.js` is the truncated cell-filtration model for
-  `E2_ANSS(C alpha_1)`, computed from the sphere `a0` and `h0 = alpha_1`
-  tables. Black dots are cyclic factors in the table-level bottom-cell
+* `185_Calpha1_ANSS_E2.js` is a truncated additive target model for
+  `E2_ANSS(C alpha_1)`, computed from the sphere `a0` and final `h0 = alpha_1`
+  tables. It is not an AANSS-page chart: it has already forgotten the AANSS
+  filtration and assembled visible `a0` extensions. Black dots are cyclic
+  factors in the table-level bottom-cell
   cokernel; hollow purple dots are cyclic factors in the shifted top-cell
   kernel. The dataset contains 451 records through the row-complete stem 153:
   236 bottom roles, 215 top roles, 420 finite factors of

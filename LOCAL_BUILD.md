@@ -95,11 +95,20 @@ page at `http://localhost:4173/index.html?data=40_BPCAlpha1_AHSS`, and the
 result after taking the attaching-map homology at
 `http://localhost:4173/index.html?data=40_BPCAlpha1_AANSS_E2`.
 
-The `C(alpha1)` AHSS chart is assembled from two shifted copies of the computed
-sphere AANSS and `40_BPAANSS_h0.txt`.  Its top-cell copy is shifted by four
-stems, and its attaching differential sends `top(x)` to `bottom(h0*x)`.  The
-separate `CAlpha1_AANSS_E2` data takes kernel on the top cell and cokernel on
-the bottom cell over `F3`, bidegree by bidegree.  At truncation boundaries it
-only reports bidegrees for which every required `h0` value was computed.  This
-is still an AHSS-derived calculation rather than a direct resolution of the
-`BP_*BP` comodule `BP_*C(alpha1)`.
+The `C(alpha1)` AHSS chart is assembled from two shifted copies of the initial
+sphere AANSS page.  Its top-cell copy is shifted by
+four stems, and its cellular attaching differential sends `top(x)` to
+`bottom(h0*x)`.  On transient AANSS classes this initial-page `h0` action is
+read from `40_BPBocSS_h0.txt`, projected to the AANSS generators, and checked
+against `d_r h0 = h0 d_r`; the final `40_BPAANSS_h0.txt` supplies permanent
+classes.  Taking the cellular homology first gives the displayed AANSS `E2`
+page for `C(alpha1)`.  The already-computed sphere AANSS differentials are then
+induced on that page and remain visible in the page selector.
+
+The chart coordinates are `(stem, AANSS filtration)`.  Cellular AHSS
+filtration is deliberately not another plotted coordinate.  Multiplication by
+`a0` may be drawn as an overlay, but its chains are not collapsed into
+`Z/3^k` nodes: additive extensions belong to the ANSS target, not to this
+AANSS-page visualization.  At truncation boundaries the converter only
+reports bidegrees for which every required initial-page `h0` value was
+computed.
