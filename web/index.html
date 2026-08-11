@@ -21,15 +21,16 @@
 
   <nav class="menubar">
     <label class="menu file-menu">Open<input id="fileInput" type="file" accept=".txt,text/plain"></label>
-    <select id="productMode" class="menu" title="Multiplication lines"><option value="none">No products</option></select>
     <select id="lineMode" class="menu" title="Differentials"><option value="all">All lines</option><option value="current">Current lines</option><option value="none">No lines</option></select>
     <select id="page" class="menu" title="Page"></select>
     <button id="more" class="menu" title="Chart information">•••</button>
   </nav>
 
-  <aside id="cellLegend" class="cell-legend" aria-label="Moore spectrum cell legend">
-    <div><span class="legend-dot legend-bottom"></span>bottom-cell image (boundary zero)</div>
-    <div><span class="legend-dot legend-top"></span>top-cell class (nonzero boundary)</div>
+  <aside id="productLegend" class="product-legend" aria-label="Multiplication legend"></aside>
+
+  <aside id="cellLegend" class="cell-legend" aria-label="Two-cell filtration legend">
+    <div><span class="legend-dot legend-bottom"></span>bottom-cell class</div>
+    <div><span class="legend-dot legend-top"></span>top-cell class</div>
   </aside>
 
   <section id="info" class="info" aria-live="polite">
