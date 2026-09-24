@@ -23,6 +23,13 @@
     <label class="menu file-menu">Open<input id="fileInput" type="file" accept=".txt,text/plain"></label>
     <select id="lineMode" class="menu" title="Differentials"><option value="all">All lines</option><option value="current">Current lines</option><option value="none">No lines</option></select>
     <select id="page" class="menu" title="Page"></select>
+    <details id="productMenu" class="product-menu" hidden>
+      <summary class="menu">Products <span id="productCount">0</span></summary>
+      <div class="product-panel" role="group" aria-label="Multiplications to display">
+        <div class="product-actions"><button id="productDefaults" type="button">Defaults</button><button id="productNone" type="button">None</button></div>
+        <div id="productChoices"></div>
+      </div>
+    </details>
     <button id="more" class="menu" title="Chart information">•••</button>
   </nav>
 

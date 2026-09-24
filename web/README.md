@@ -41,6 +41,74 @@ again and refresh the browser. No rebuild or package installation is needed.
 The reader parses data entirely in the browser; selected local files are not
 uploaded anywhere.
 
+## Multiplication overlays
+
+Use the **Products** drop-down at the upper right to turn individual
+multiplications on or off. The default selection is multiplication by `a0`,
+`alpha1 = h0`, and every available `theta` operation. Other tables such as
+`h1` and `h2` remain available in the menu when their companion files exist,
+but start unchecked. **Defaults** restores this selection and **None** hides
+all product lines.
+
+Newly generated AANSS datasets store product relations separately by page:
+
+* page `2` records the initial AANSS relation where it can be established from
+  the named initial basis and the earlier Bockstein operation;
+* page `infinity` records the existing C++ chain-level multiplier expressed in
+  the surviving AANSS basis.
+
+When an intermediate finite page has no table of its own, the reader carries
+the latest earlier finite-page relation forward and removes lines whose source
+or target has died. It does not use an `E2` relation as an `E∞` relation: the
+explicit `infinity` table is selected there. Rows that cannot be determined
+within the calculation range are omitted rather than declared zero. The
+generated payload includes `product_page_counts` so known and unknown initial
+rows can be audited.
+
+The browser format remains backward compatible with the earlier
+`"label": "source -> target"` objects. Its page-aware form is:
+
+```json
+{
+  "a0 (multiplication by 3)": {
+    "family": "a0",
+    "defaultVisible": true,
+    "pages": {
+      "2": "source -> E2-target+o\n",
+      "infinity": "source -> surviving-target+o\n"
+    },
+    "provenance": {
+      "2": "how the initial-page table was obtained",
+      "infinity": "how the surviving table was obtained"
+    }
+  }
+}
+```
+
+At the chain-complex level, `BPInit::mult_table(mul, degree, filename)` is the
+generic entry point for a fixed `BP_*BP` multiplier. It constructs the
+multiplier on the resolution and writes both `AANSS_<filename>` and
+`BocSS_<filename>`. The web generator automatically discovers additional
+matching `AANSS_<name>.txt`/`BocSS_<name>.txt` files. If their visible terms
+have one unambiguous bidegree shift, it records the projected `E2` operation;
+otherwise it retains the authoritative `E∞` table and reports no invented
+initial-page relation. The current repository defines `h0 = alpha1` and the Moore
+`theta2` through `theta7` multipliers. It does not yet define sphere `h1` or
+`h2` elements in `BP_Op`; adding those requires a mathematically verified
+`BP_*BP` representative and grading before calling the generic function.
+
+Conceptually this is the fixed-class part of the Yoneda product: a chosen
+cocycle is lifted to a filtered chain map of the resolution, and composition
+induces its action on Ext. A complete multiplication table for arbitrary pairs
+of Ext classes would require storing compatible lifts (or an equivalent
+diagonal/cobar product), not merely multiplying the printed class names. Once
+the filtered chain map is retained page by page, its commutation with the
+differential supplies the Leibniz propagation used by the `E2` reconstruction.
+The reusable converter function is
+`extend_right_product_by_leibniz(known, differentials, label=...)`; it applies
+`d_r(xm)=d_r(x)m` for a permanent right multiplier and rejects a table that
+conflicts with an already known row.
+
 ## Eva Belmont's 185 computation
 
 The four checked-in 185 datasets are derived from the public text files in

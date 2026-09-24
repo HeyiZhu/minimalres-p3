@@ -17,14 +17,14 @@ def companion_products(path: Path) -> dict[str, str]:
     """Collect multiplication tables belonging to a displayed SS table."""
     name = path.name
     if name.endswith("AANSS_table.txt"):
-        prefix, suffixes = name[: -len("AANSS_table.txt")], {
+        table_marker, prefix, suffixes = "AANSS_", name[: -len("AANSS_table.txt")], {
             "a0 (multiplication by 3)": "AANSS_a0.txt",
             "h0": "AANSS_h0.txt",
             "h1": "AANSS_h1.txt",
             "h2": "AANSS_h2.txt",
         }
     elif name.endswith("BocSS_table.txt"):
-        prefix, suffixes = name[: -len("BocSS_table.txt")], {
+        table_marker, prefix, suffixes = "BocSS_", name[: -len("BocSS_table.txt")], {
             "a0 (multiplication by 3)": "BocSS_a0.txt",
             "h0": "BocSS_h0.txt",
             "h1": "BocSS_h1.txt",
@@ -38,6 +38,17 @@ def companion_products(path: Path) -> dict[str, str]:
         companion = path.with_name(prefix + suffix)
         if companion.is_file():
             products[label] = companion.read_text(encoding="utf-8")
+    # Preserve the conventional labels above, then discover any additional
+    # fixed multipliers emitted by BPInit::mult_table without another code
+    # change in this converter.
+    known_files = {prefix + suffix for suffix in suffixes.values()}
+    for companion in sorted(path.parent.glob(prefix + table_marker + "*.txt")):
+        if companion.name in known_files or companion.name.endswith("table.txt"):
+            continue
+        operation_name = companion.name[
+            len(prefix + table_marker) : -len(".txt")
+        ]
+        products[operation_name] = companion.read_text(encoding="utf-8")
     return products
 
 
@@ -53,6 +64,25 @@ def parse_product_table(text: str) -> dict[str, dict[str, int]]:
                 targets[target] = (targets.get(target, 0) + 1) % 3
         result[source] = {name: coefficient for name, coefficient in targets.items() if coefficient}
     return result
+
+
+def restrict_product_table(text: str, allowed_names: set[str]) -> str:
+    """Keep only rows completely expressible in a displayed named basis."""
+    rows = []
+    for row in text.splitlines():
+        if "->" not in row:
+            continue
+        source, rhs = map(str.strip, row.split("->", 1))
+        targets = [
+            target.strip()
+            for target in rhs.split("+")
+            if target.strip() and target.strip() != "o"
+        ]
+        if source in allowed_names and all(
+            target in allowed_names for target in targets
+        ):
+            rows.append(row)
+    return "\n".join(rows) + ("\n" if rows else "")
 
 
 def rref(matrix: list[list[int]]) -> tuple[list[list[int]], list[int]]:
@@ -164,23 +194,114 @@ def initial_page_data(table_text: str) -> tuple[
     return names, degrees, differentials
 
 
-def initial_h0_from_bockstein(
-    table_text: str,
-    final_h0_text: str,
-    bockstein_h0_text: str,
+def operation_family(label: str) -> str:
+    """Return the stable UI/data identifier for a multiplication table."""
+    normalized = label.lower().replace("_", " ")
+    if re.search(r"(^|\s)a0(?:\s|$)", normalized):
+        return "a0"
+    if (
+        re.search(r"(^|\s)a1(?:\s|$)", normalized)
+        or "alpha1" in normalized.replace(" ", "")
+        or re.search(r"(^|\s)h0(?:\s|$)", normalized)
+    ):
+        return "alpha1"
+    theta = re.search(r"theta\s*(\d+)?", normalized)
+    if theta:
+        return "theta" + (theta.group(1) or "")
+    return re.sub(r"[^a-z0-9]+", "-", normalized).strip("-") or "product"
+
+
+def default_product_visible(label: str) -> bool:
+    family = operation_family(label)
+    return family in {"a0", "alpha1"} or family.startswith("theta")
+
+
+def product_spec(
+    label: str,
+    pages: dict[str, str],
     *,
+    provenance: dict[str, str] | None = None,
+) -> dict[str, object]:
+    """Build the page-aware multiplication format consumed by the viewer."""
+    return {
+        "family": operation_family(label),
+        "defaultVisible": default_product_visible(label),
+        "pages": pages,
+        "provenance": provenance or {},
+    }
+
+
+def extend_right_product_by_leibniz(
+    known: dict[str, dict[str, int]],
+    differentials: list[dict[str, object]],
+    *,
+    label: str,
+) -> dict[str, dict[str, int]]:
+    """Extend right multiplication by a permanent class across d_r pairs.
+
+    For a permanent multiplier ``m``, the right-handed Leibniz formula is
+    ``d_r(x m) = d_r(x) m``.  Thus knowing ``x m`` and every d_r on its terms
+    determines the operation on ``d_r(x)``.  All coefficients are in F_3.
+    """
+    result = {name: dict(image) for name, image in known.items()}
+    differentials_by_page: dict[int, dict[str, dict[str, int]]] = {}
+    for differential in differentials:
+        page = int(differential["page"])
+        differentials_by_page.setdefault(page, {})[
+            str(differential["source"])
+        ] = {str(differential["target"]): 1}
+
+    changed = True
+    while changed:
+        changed = False
+        for differential in differentials:
+            source = str(differential["source"])
+            target = str(differential["target"])
+            page = int(differential["page"])
+            if source not in result:
+                continue
+            image: dict[str, int] = {}
+            page_map = differentials_by_page[page]
+            for term, coefficient in result[source].items():
+                for output, output_coefficient in page_map.get(term, {}).items():
+                    image[output] = (
+                        image.get(output, 0)
+                        + coefficient * output_coefficient
+                    ) % 3
+            image = {
+                name: coefficient
+                for name, coefficient in image.items()
+                if coefficient
+            }
+            if target in result and result[target] != image:
+                raise ValueError(
+                    f"{label} does not satisfy Leibniz at d{page}({source})"
+                )
+            if target not in result:
+                result[target] = image
+                changed = True
+    return result
+
+
+def initial_operation_from_bockstein(
+    table_text: str,
+    final_operation_text: str,
+    bockstein_operation_text: str,
+    *,
+    label: str,
+    degree_shift: tuple[int, int],
     internal_degree_bound: int,
 ) -> tuple[str, dict[str, int]]:
-    """Recover h0 before AANSS d_r's from the earlier Bockstein table.
+    """Recover an operation before AANSS d_r's from the Bockstein table.
 
     Bockstein names that survive to the initial AANSS page are retained.
-    The map is then extended to differential targets using d_r h0 = h0 d_r.
+    The map is then extended to differential targets using d_r m = m d_r.
     Rows outside the computed internal-degree range remain unknown.
     """
     names, degrees, differentials = initial_page_data(table_text)
     name_set = set(names)
-    final_h0 = parse_product_table(final_h0_text)
-    bockstein_h0 = parse_product_table(bockstein_h0_text)
+    final_operation = parse_product_table(final_operation_text)
+    bockstein_operation = parse_product_table(bockstein_operation_text)
     known: dict[str, dict[str, int]] = {}
 
     def projected(operation: dict[str, dict[str, int]], name: str) -> dict[str, int]:
@@ -193,54 +314,37 @@ def initial_h0_from_bockstein(
     # The Bockstein table still contains transient AANSS generators.  The
     # final AANSS table is authoritative on permanent generators.
     for name in names:
-        if name in bockstein_h0:
-            known[name] = projected(bockstein_h0, name)
-        if name in final_h0:
-            final_image = projected(final_h0, name)
+        if name in bockstein_operation:
+            known[name] = projected(bockstein_operation, name)
+        if name in final_operation:
+            final_image = projected(final_operation, name)
             if name in known and known[name] != final_image:
-                raise ValueError(f"Bockstein/final h0 disagreement on {name}")
+                raise ValueError(
+                    f"Bockstein/final {label} disagreement on {name}"
+                )
             known[name] = final_image
 
-    differentials_by_page: dict[int, dict[str, dict[str, int]]] = {}
-    for differential in differentials:
-        page = int(differential["page"])
-        differentials_by_page.setdefault(page, {})[
-            str(differential["source"])
-        ] = {str(differential["target"]): 1}
-
-    # Naturality determines h0 on a differential target from its source.
-    changed = True
-    while changed:
-        changed = False
-        for differential in differentials:
-            source = str(differential["source"])
-            target = str(differential["target"])
-            page = int(differential["page"])
-            if source not in known:
-                continue
-            image: dict[str, int] = {}
-            page_map = differentials_by_page[page]
-            for term, coefficient in known[source].items():
-                for output, output_coefficient in page_map.get(term, {}).items():
-                    image[output] = (
-                        image.get(output, 0)
-                        + coefficient * output_coefficient
-                    ) % 3
-            image = {name: coefficient for name, coefficient in image.items() if coefficient}
-            if target in known and known[target] != image:
-                raise ValueError(f"h0 does not commute with d{page} at {source}")
-            if target not in known:
-                known[target] = image
-                changed = True
+    # Naturality determines the operation on a differential target from its
+    # source.  The fixed multipliers used here are permanent cycles, so their
+    # own differential is zero in the Leibniz formula.
+    known = extend_right_product_by_leibniz(
+        known,
+        differentials,
+        label=label,
+    )
 
     groups = {}
     for name, degree in degrees.items():
         groups.setdefault(degree, []).append(name)
-    # Within the declared run bound, an empty target bidegree forces h0=0.
+    # Within the declared run bound, an empty target bidegree forces the
+    # operation to be zero.
     for name, degree in degrees.items():
         if name in known:
             continue
-        target_degree = (degree[0] + 3, degree[1] + 1)
+        target_degree = (
+            degree[0] + degree_shift[0],
+            degree[1] + degree_shift[1],
+        )
         if sum(target_degree) <= internal_degree_bound and not groups.get(target_degree):
             known[name] = {}
 
@@ -254,9 +358,199 @@ def initial_h0_from_bockstein(
         rows.append(f"{name}\t->\t" + "+".join(rhs + ["o"]))
     return "\n".join(rows) + ("\n" if rows else ""), {
         "initial_classes": len(names),
-        "known_h0_rows": len(known),
-        "unknown_h0_rows": len(names) - len(known),
+        "known_rows": len(known),
+        "unknown_rows": len(names) - len(known),
     }
+
+
+def initial_h0_from_bockstein(
+    table_text: str,
+    final_h0_text: str,
+    bockstein_h0_text: str,
+    *,
+    internal_degree_bound: int,
+) -> tuple[str, dict[str, int]]:
+    """Backward-compatible wrapper for the alpha_1 = h0 operation."""
+    text, counts = initial_operation_from_bockstein(
+        table_text,
+        final_h0_text,
+        bockstein_h0_text,
+        label="h0",
+        degree_shift=(3, 1),
+        internal_degree_bound=internal_degree_bound,
+    )
+    return text, {
+        "initial_classes": counts["initial_classes"],
+        "known_h0_rows": counts["known_rows"],
+        "unknown_h0_rows": counts["unknown_rows"],
+    }
+
+
+def initial_a0_from_names(
+    table_text: str,
+    *,
+    internal_degree_bound: int,
+) -> tuple[str, dict[str, int]]:
+    """Record the visible v0 action on the initial AANSS named basis.
+
+    AANSS class names use a leading ``v0^k`` for their a0 tower.  We only
+    record a nonzero value when the incremented name is literally present in
+    the initial-page basis with the required bidegree.  Missing target
+    bidegrees inside the run bound give certified zero rows; all other cases
+    remain unknown.
+    """
+    names, degrees, _ = initial_page_data(table_text)
+    name_set = set(names)
+    groups: dict[tuple[int, int], list[str]] = {}
+    for name, degree in degrees.items():
+        groups.setdefault(degree, []).append(name)
+
+    rows = []
+    known = 0
+    for name in names:
+        match = re.match(r"v0\^(\d+)(.*)", name)
+        target = (
+            f"v0^{int(match.group(1)) + 1}{match.group(2)}"
+            if match
+            else f"v0^1{name}"
+        )
+        target_degree = (degrees[name][0], degrees[name][1] + 1)
+        if target in name_set and degrees[target] == target_degree:
+            rows.append(f"{name}\t->\t{target}+o")
+            known += 1
+        elif (
+            sum(target_degree) <= internal_degree_bound
+            and not groups.get(target_degree)
+        ):
+            rows.append(f"{name}\t->\to")
+            known += 1
+
+    return "\n".join(rows) + ("\n" if rows else ""), {
+        "initial_classes": len(names),
+        "known_rows": known,
+        "unknown_rows": len(names) - known,
+    }
+
+
+def infer_operation_degree_shift(
+    table_text: str,
+    *operation_texts: str,
+) -> tuple[int, int] | None:
+    """Infer a homogeneous operation's bidegree from visible named terms."""
+    _, degrees, _ = initial_page_data(table_text)
+    shifts = set()
+    for text in operation_texts:
+        for source, targets in parse_product_table(text).items():
+            if source not in degrees:
+                continue
+            for target in targets:
+                if target in degrees:
+                    shifts.add(
+                        (
+                            degrees[target][0] - degrees[source][0],
+                            degrees[target][1] - degrees[source][1],
+                        )
+                    )
+    return next(iter(shifts)) if len(shifts) == 1 else None
+
+
+def pagewise_products(
+    source: Path,
+    table_text: str,
+    products: dict[str, str],
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, int]]]:
+    """Record product relations on the initial AANSS page and E-infinity.
+
+    The existing AANSS companion files name products after the algebraic
+    Novikov differentials have been resolved, so they are stored as E-infinity
+    data.  When the corresponding earlier Bockstein operation is available,
+    it is projected to all named initial-page AANSS generators and recorded on
+    E2.  Unknown rows are omitted, never silently changed to zero.
+    """
+    if not source.name.endswith("AANSS_table.txt"):
+        return (
+            {
+                label: product_spec(
+                    label,
+                    {"all": text},
+                    provenance={"all": "companion operation table"},
+                )
+                for label, text in products.items()
+            },
+            {},
+        )
+
+    prefix = source.name[: -len("AANSS_table.txt")]
+    bound_match = re.match(r"(\d+)_", source.name)
+    bound = int(bound_match.group(1)) if bound_match else None
+    shifts = {"a0": (0, 1), "alpha1": (3, 1)}
+    result: dict[str, dict[str, object]] = {}
+    stats: dict[str, dict[str, int]] = {}
+    infinity_names = set(table_basis(table_text)[0])
+
+    for label, final_text in products.items():
+        family = operation_family(label)
+        pages = {
+            "infinity": restrict_product_table(final_text, infinity_names)
+        }
+        provenance = {
+            "infinity": (
+                "chain-level multiplier expressed in the surviving AANSS basis"
+            )
+        }
+        companion_suffix = {"alpha1": "BocSS_h0.txt"}.get(family)
+        if companion_suffix is None and re.fullmatch(r"[A-Za-z0-9_.-]+", label):
+            companion_suffix = f"BocSS_{label}.txt"
+        bockstein_path = (
+            source.with_name(prefix + companion_suffix)
+            if companion_suffix
+            else None
+        )
+        if family == "a0" and bound is not None:
+            initial_text, counts = initial_a0_from_names(
+                table_text,
+                internal_degree_bound=bound,
+            )
+            pages["2"] = initial_text
+            provenance["2"] = (
+                "visible v0 action on the named initial AANSS basis; "
+                "ambiguous rows are omitted"
+            )
+            stats[label] = counts
+        elif (
+            bound is not None
+            and bockstein_path is not None
+            and bockstein_path.is_file()
+        ):
+            bockstein_text = bockstein_path.read_text(encoding="utf-8")
+            degree_shift = shifts.get(family) or infer_operation_degree_shift(
+                table_text,
+                final_text,
+                bockstein_text,
+            )
+            if degree_shift is None:
+                result[label] = product_spec(
+                    label,
+                    pages,
+                    provenance=provenance,
+                )
+                continue
+            initial_text, counts = initial_operation_from_bockstein(
+                table_text,
+                final_text,
+                bockstein_text,
+                label=label,
+                degree_shift=degree_shift,
+                internal_degree_bound=bound,
+            )
+            pages["2"] = initial_text
+            provenance["2"] = (
+                "projected from the Bockstein operation table and extended "
+                f"by d_r-linearity (bidegree shift {degree_shift})"
+            )
+            stats[label] = counts
+        result[label] = product_spec(label, pages, provenance=provenance)
+    return result, stats
 
 
 def prefixed_products(text: str, prefix: str) -> str:
@@ -280,6 +574,12 @@ def calpha1_payloads(
     """Run the cellular AHSS first, then retain the AANSS filtration."""
     if "AANSS_table" not in source.name:
         return None
+    sphere_page_products, _ = pagewise_products(source, table_text, products)
+    sphere_e2_products = {
+        label: str(spec["pages"]["2"])
+        for label, spec in sphere_page_products.items()
+        if "2" in spec["pages"]
+    }
     h0_stats = None
     h0 = initial_h0_text
     if h0 is None:
@@ -325,12 +625,12 @@ def calpha1_payloads(
             if visible:
                 attaching.append(f"top·{origin}\t->\t" + "+".join(visible) + "+o")
     ahss_products = {"AHSS d1 = alpha1 = h0": "\n".join(attaching) + "\n"}
-    for label, text in products.items():
+    for label, text in sphere_e2_products.items():
         ahss_products[f"{label} on both cells"] = prefixed_products(text, "bottom") + prefixed_products(text, "top")
     base = source.name.replace("AANSS_table.txt", "CAlpha1")
     ahss = {
         "name": f"{base} cellular AHSS E1",
-        "kind": "aanss",
+        "kind": "ahss",
         "text": "\n".join(rows) + "\n",
         "products": ahss_products,
         "construction": "C(alpha_1) = S^0 union_{alpha_1} e^4",
@@ -415,9 +715,9 @@ def calpha1_payloads(
             return None
         return candidates, coefficients
 
-    def induced_products() -> dict[str, str]:
+    def induced_products(input_products: dict[str, str]) -> dict[str, str]:
         result = {}
-        for label, text in products.items():
+        for label, text in input_products.items():
             product_map, output_rows = parse_product_table(text), []
             for node in e2_nodes:
                 image = apply_product(node["vector"], product_map)
@@ -501,13 +801,44 @@ def calpha1_payloads(
                 )
         return output_rows
 
+    induced_e2_products = induced_products(sphere_e2_products)
+    permanent_sphere_names = set(table_basis(table_text)[0])
+    induced_infinity_products = induced_products(
+        {
+            label: restrict_product_table(text, permanent_sphere_names)
+            for label, text in products.items()
+        }
+    )
+    displayed_products = {}
+    for label in dict.fromkeys(
+        list(induced_e2_products) + list(induced_infinity_products)
+    ):
+        pages = {}
+        provenance = {}
+        if label in induced_e2_products:
+            pages["2"] = induced_e2_products[label]
+            provenance["2"] = (
+                "induced on cellular h0-homology from the sphere E2 operation"
+            )
+        if label in induced_infinity_products:
+            pages["infinity"] = induced_infinity_products[label]
+            provenance["infinity"] = (
+                "induced from the surviving sphere operation table and shown "
+                "only between surviving displayed representatives"
+            )
+        displayed_products[label] = product_spec(
+            label,
+            pages,
+            provenance=provenance,
+        )
+
     e2_rows = [f"{node['name']}\t|deg=({node['degree'][0]},{node['degree'][1]})\t|cell={node['layer']}" for node in e2_nodes]
     differential_rows = induced_differential_rows()
     e2 = {
         "name": f"{base} AANSS E2 after the cellular attaching differential",
         "kind": "aanss",
         "text": "\n".join(e2_rows + differential_rows) + "\n",
-        "products": induced_products(),
+        "products": displayed_products,
         "construction": (
             "First take the cellular AHSS homology for d_cell=h0 over F3; "
             "then display the induced AANSS differentials."
@@ -551,12 +882,21 @@ def main() -> None:
     for source in args.tables:
         if not source.is_file():
             parser.error(f"table does not exist: {source}")
+        table_text = source.read_text(encoding="utf-8")
+        raw_products = {} if args.no_products else companion_products(source)
+        displayed_products, product_counts = pagewise_products(
+            source,
+            table_text,
+            raw_products,
+        )
         payload = {
             "name": source.name,
             "kind": table_kind(source),
-            "text": source.read_text(encoding="utf-8"),
-            "products": {} if args.no_products else companion_products(source),
+            "text": table_text,
+            "products": displayed_products,
         }
+        if product_counts:
+            payload["product_page_counts"] = product_counts
         output = args.output_dir / f"{source.stem}.js"
         output.write_text(
             "globalThis.MINIMALRES_DATA = "
@@ -565,7 +905,7 @@ def main() -> None:
             encoding="utf-8",
         )
         print(f"generated {output}")
-        calpha1 = calpha1_payloads(source, payload["text"], payload["products"])
+        calpha1 = calpha1_payloads(source, table_text, raw_products)
         if calpha1:
             ahss, e2 = calpha1
             base = source.stem.replace("AANSS_table", "CAlpha1")

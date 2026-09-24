@@ -23,6 +23,8 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from generate_web_data import product_spec
+
 
 DEGREE_RE = re.compile(r"\|deg=(-?\d+)")
 DIFFERENTIAL_RE = re.compile(r"\|d(\d+)")
@@ -296,6 +298,19 @@ def main() -> None:
         parser.error("table produced no M(3) classes")
 
     products, operation_counts = normalized_products(args.table, classes)
+    displayed_products = {
+        label: product_spec(
+            label,
+            {"2": text},
+            provenance={
+                "2": (
+                    "normalized from the chain-level Bockstein operation on "
+                    "the one-copy M(3) ANSS E2 basis"
+                )
+            },
+        )
+        for label, text in products.items()
+    }
     payload = {
         "name": f"{args.table.stem.replace('_BPBocSS_table', '')} M3 ANSS E2",
         "kind": "m3",
@@ -307,7 +322,7 @@ def main() -> None:
         "counts": dict(counts),
         "operation_counts": operation_counts,
         "text": "\n".join(item.table_line() for item in classes) + "\n",
-        "products": products,
+        "products": displayed_products,
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     output = args.output_dir / default_output_name(args.table)
